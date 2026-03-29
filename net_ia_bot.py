@@ -88,6 +88,9 @@ def enviar_botones(chat_id, texto):
     })
 
 # 🔥 WEBHOOK
+@app.route("/")
+def home():
+    return "Bot activo"
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.get_json()
