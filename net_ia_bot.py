@@ -2,16 +2,15 @@ from flask import Flask, request
 import requests
 import sqlite3
 from datetime import datetime
-import os
 
 app = Flask(__name__)
 
-TOKEN = os.getenv("TOKEN")
+import os
 
-# 🔗 LINKS
-LINK_REGISTRO = "https://4l.shop/KH0CY"
-LINK_COMPRA = "https://4l.shop/MCRQ8"
-WHATSAPP = "https://wa.me/51976339774"
+TOKEN = os.getenv("TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# 🔥 MEMORIA
+historial = {}
 
 # 🔥 BASE DE DATOS
 def iniciar_db():
@@ -47,14 +46,37 @@ def guardar_cliente(chat_id, nombre, interes, nivel):
     conn.commit()
     conn.close()
 
+# 🔥 CONOCIMIENTO
+def cargar_conocimiento():
+    try:
+        with open("conocimiento.txt", "r", encoding="utf-8") as f:
+            return f.read()
+    except:
+        return ""
+
+CONOCIMIENTO = cargar_conocimiento()
+
+# 🔥 INTENCIÓN
+def detectar_intencion(texto):
+    texto = texto.lower()
+
+    if any(p in texto for p in ["precio", "cuanto", "costo"]):
+        return "caliente 🔥"
+    elif any(p in texto for p in ["quiero", "me interesa"]):
+        return "caliente 🔥"
+    elif any(p in texto for p in ["info", "que es"]):
+        return "medio 😐"
+    else:
+        return "frio ❄️"
+
 # 🔥 BOTONES
 def enviar_botones(chat_id, texto):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
     botones = {
         "keyboard": [
-            ["🔥 Salud", "💰 Negocio"],
-            ["🛒 Comprar", "🚀 Unirme"]
+            ["Salud 💪", "Negocio 💼"],
+            ["Comprar 🛒", "Info ℹ️"]
         ],
         "resize_keyboard": True
     }
@@ -66,123 +88,215 @@ def enviar_botones(chat_id, texto):
     })
 
 # 🔥 WEBHOOK
-# 🔥 ESTADO USUARIO
-estado_usuario = {}
-
-@app.route("/webhook", methods=["POST"])
+@app.route("/")
+def home():
+    return "Bot activo"
+@app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.get_json()
 
+    if not data:
+        return "ok"
+
     if "message" in data:
         chat_id = data["message"]["chat"]["id"]
-        texto = data["message"].get("text", "").lower()
+        texto = data["message"].get("text", "")
+        nombre = data["message"]["chat"].get("first_name", "cliente")
 
-        estado = estado_usuario.get(chat_id, "inicio")
+        nivel = detectar_intencion(texto)
+        guardar_cliente(chat_id, nombre, texto, nivel)
 
-        # 🚀 INICIO
-        if texto == "/start":
-            estado_usuario[chat_id] = "inicio"
+        # BOTONES CON IA
+     # 🔥 NORMALIZAR TEXTO
+texto_lower = texto.lower()
 
-            enviar_botones(chat_id,
-                "🔥 Bienvenido a 4Life\n\n¿Qué deseas hoy?",
-                [["🔥 Salud"], ["💰 Negocio"]]
-            )
+# 💪 SALUD
+if "salud" in texto_lower:
+    respuesta = generar_respuesta(chat_id, "quiero mejorar mi salud", "salud")
 
-        # 💪 SALUD (PASO 1)
-        elif "salud" in texto:
-            estado_usuario[chat_id] = "salud1"
-
-            enviar_botones(chat_id,
-                "💪 Perfecto\n\n¿Qué deseas mejorar?",
-                [["⚡ Energía"], ["🛡️ Sistema Inmune"]]
-            )
-
-        # 💪 SALUD (PASO 2)
-        elif estado == "salud1":
-            estado_usuario[chat_id] = "salud2"
-
-            enviar_botones(chat_id,
-                f"""🔥 Este producto es ideal
-
-✔ Más energía  
-✔ Defensas altas  
+    respuesta += f"""
 
 🛒 Compra aquí:
 {LINK_COMPRA}
+"""
 
-⏳ Oferta limitada""",
-                [["🛒 Comprar Ahora"], ["💬 Asesor"]]
-            )
+# 💰 NEGOCIO
+elif "negocio" in texto_lower or "dinero" in texto_lower:
+    respuesta = generar_respuesta(chat_id, "quiero generar ingresos", "negocio")
 
-        # 💰 NEGOCIO (PASO 1)
-        elif "negocio" in texto:
-            estado_usuario[chat_id] = "negocio1"
-
-            enviar_botones(chat_id,
-                "💰 Perfecto\n\n¿Qué buscas?",
-                [["💵 Extra"], ["🚀 Grande"]]
-            )
-
-        # 💰 NEGOCIO (PASO 2)
-        elif estado == "negocio1":
-            estado_usuario[chat_id] = "negocio2"
-
-            enviar_botones(chat_id,
-                f"""🔥 Este negocio es para ti
-
-✔ Ingresos desde casa  
-✔ Sistema probado  
+    respuesta += f"""
 
 🚀 Únete aquí:
 {LINK_REGISTRO}
+"""
 
-⏳ Cupos limitados""",
-                [["🚀 Unirme"], ["💬 Asesor"]]
-            )
+# 🛒 COMPRA (INTENCIÓN FUERTE)
+elif any(p in texto_lower for p in ["comprar", "precio", "cuanto", "costo"]):
+    respuesta = generar_respuesta(chat_id, "quiero comprar", "comprar")
 
-        # 🛒 COMPRA FINAL
-        elif "comprar" in texto:
-            enviar_botones(chat_id,
-                f"""🛒 Compra ahora
+    respuesta += f"""
 
+🔥 Compra directa:
 {LINK_COMPRA}
+"""
 
-🔥 Empieza hoy mismo""",
-                [["💬 Asesor"]]
-            )
+# 🚀 REGISTRO (INTENCIÓN NEGOCIO)
+elif any(p in texto_lower for p in ["unirme", "inscrib", "registro", "equipo"]):
+    respuesta = generar_respuesta(chat_id, "quiero unirme", "registro")
 
-        # 🚀 REGISTRO FINAL
-        elif "unirme" in texto:
-            enviar_botones(chat_id,
-                f"""🚀 Regístrate ahora
+    respuesta += f"""
 
+🚀 Empieza aquí:
 {LINK_REGISTRO}
+"""
 
-💼 Empieza hoy""",
-                [["💬 Asesor"]]
-            )
+# ℹ️ INFO
+elif "info" in texto_lower:
+    respuesta = generar_respuesta(chat_id, "quiero información", "info")
 
-        # 💬 WHATSAPP
-        elif "asesor" in texto:
-            enviar_botones(chat_id,
-                f"""💬 Escríbeme aquí:
+# ❗ CONTROL (NO SE SALE DEL EMBUDO)
+else:
+    respuesta = """🔥 Elige una opción:
 
+💪 Salud → mejorar tu bienestar  
+💰 Negocio → generar ingresos  
+🛒 Comprar → adquirir productos  
+🚀 Unirme → empezar negocio  
+
+👇 Usa los botones"""
+
+# 💬 SIEMPRE WHATSAPP (CIERRE)
+respuesta += f"""
+
+💬 Escríbeme:
 {WHATSAPP}
+"""
 
-Te guío paso a paso""",
-                [["🔥 Inicio"]]
-            )
+# 🚀 ENVIAR
+enviar_botones(chat_id, respuesta)
 
-        # 🔁 RESET
+# 🔥 IA REAL
+def generar_respuesta(chat_id, texto_usuario, tipo="general"):
+    try:
+        if chat_id not in historial:
+            historial[chat_id] = []
+
+        historial[chat_id].append({
+            "role": "user",
+            "content": texto_usuario
+        })
+
+        mensajes = historial[chat_id][-6:]
+
+        # 🎯 MODO SEGÚN BOTÓN
+        modo = ""
+        if tipo == "salud":
+            modo = "Habla de beneficios de salud."
+        elif tipo == "negocio":
+            modo = "Habla de ingresos y oportunidad."
+        elif tipo == "comprar":
+            modo = "Cierra la venta."
+        elif tipo == "info":
+            modo = "Explica y genera interés."
         else:
-            estado_usuario[chat_id] = "inicio"
+            modo = "Detecta necesidad y guía."
 
-            enviar_botones(chat_id,
-                "🔥 Elige una opción",
-                [["🔥 Salud"], ["💰 Negocio"]]
-            )
+        system_prompt = f"""
+Eres NET, experto en ventas de productos de bienestar de 4Life.
 
-    return "ok"
+Conocimiento:
+{CONOCIMIENTO}
+
+Modo:
+{modo}
+
+Reglas:
+- Máx 3 líneas
+- Termina con pregunta
+- Lenguaje humano
+"""
+
+        headers = {
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        data = {
+            "model": "gpt-4o-mini",
+            "input": [
+                {"role": "system", "content": system_prompt},
+                *mensajes
+            ]
+        }
+
+        response = requests.post(
+            "https://api.openai.com/v1/responses",
+            headers=headers,
+            json=data
+        )
+
+        result = response.json()
+        print("STATUS:", response.status_code)
+        print("IA RESPONSE:", result)
+
+        # 🔥 LECTURA SEGURA
+        try:
+            respuesta = result["output"][0]["content"][0]["text"]
+        except:
+            respuesta = "🤖 Estoy procesando... intenta otra vez"
+
+        historial[chat_id].append({
+            "role": "assistant",
+            "content": respuesta
+        })
+
+        texto_lower = texto_usuario.lower()
+
+        # 🔥 WHATSAPP
+        if any(p in texto_lower for p in ["precio", "comprar", "interesa"]):
+            respuesta += "\n\n👉 Escríbeme: https://wa.me/51976339774"
+
+        # 🔥 AFILIACIÓN
+        if any(p in texto_lower for p in [
+            "afiliarme", "registrarme", "inscribirme",
+            "quiero entrar", "negocio", "unirme"
+        ]):
+            respuesta += "\n\n🚀 Regístrate aquí:\nhttps://4l.shop/KH0CY"
+
+        return respuesta
+
+    except Exception as e:
+        print("ERROR IA:", e)
+        return "⚠️ Error IA"
+
+# 🔥 DASHBOARD
+@app.route("/crm")
+def dashboard():
+    conn = sqlite3.connect("crm.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM clientes ORDER BY fecha DESC")
+    datos = cursor.fetchall()
+
+    conn.close()
+
+    total = len(datos)
+    calientes = len([c for c in datos if "caliente" in c[3]])
+
+    html = f"""
+    <html>
+    <body style="background:#0f172a;color:white;text-align:center;font-family:Arial">
+    <h1>🚀 CRM NIVEL DIOS</h1>
+    <h3>Total: {total} | Calientes: {calientes}</h3>
+    <table border=1 style="margin:auto;width:90%">
+    <tr><th>Nombre</th><th>Interés</th><th>Nivel</th><th>Fecha</th></tr>
+    """
+
+    for c in datos:
+        html += f"<tr><td>{c[1]}</td><td>{c[2]}</td><td>{c[3]}</td><td>{c[4]}</td></tr>"
+
+    html += "</table></body></html>"
+    return html
 
 # 🚀 RUN
 if __name__ == "__main__":
