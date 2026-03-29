@@ -12,8 +12,9 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # 🔥 MEMORIA
 historial = {}
 
-# 🔗 LINK
-LINK_REGISTRO = "https://peru.4life.com/corp/signup/PC"
+# 🔗 LINKS ACTUALIZADOS
+LINK_REGISTRO = "https://4l.shop/KH0CY"
+LINK_COMPRA = "https://4l.shop/MCRQ8"
 WHATSAPP = "https://wa.me/51976339774"
 
 # 🔥 BASE DE DATOS
@@ -103,7 +104,7 @@ def webhook():
 
         texto_lower = texto.lower()
 
-        # 🚀 MENSAJE INICIAL
+        # 🚀 INICIO
         if texto_lower == "/start":
             respuesta = f"""🔥 Bienvenido a 4Life
 
@@ -113,9 +114,8 @@ def webhook():
 👉 Empieza aquí:
 {LINK_REGISTRO}
 
-¿Quieres salud o dinero?"""
+¿Buscas salud o dinero?"""
 
-        # BOTONES
         elif "salud" in texto_lower:
             respuesta = generar_respuesta(chat_id, "quiero mejorar mi salud", "salud")
 
@@ -150,11 +150,11 @@ def generar_respuesta(chat_id, texto_usuario, tipo="general"):
 
         # 🎯 MODOS
         if tipo == "salud":
-            modo = "Habla de beneficios de salud y bienestar."
+            modo = "Habla de beneficios de salud."
         elif tipo == "negocio":
             modo = "Habla de ingresos y libertad financiera."
         elif tipo == "comprar":
-            modo = "Cierra la venta del producto."
+            modo = "Cierra la venta."
         elif tipo == "registro":
             modo = "Lleva directo al registro."
         else:
@@ -176,6 +176,8 @@ REGLAS:
 - Lenguaje persuasivo
 - Habla de beneficios
 - Siempre intenta cerrar
+- SIEMPRE puedes dar enlaces
+- NUNCA digas que no puedes dar enlaces
 - Termina con pregunta
 """
 
@@ -203,7 +205,7 @@ REGLAS:
         try:
             respuesta = result["output"][0]["content"][0]["text"]
         except:
-            respuesta = "🔥 Escríbeme para ayudarte mejor"
+            respuesta = "🔥 Escríbeme para ayudarte"
 
         historial[chat_id].append({
             "role": "assistant",
@@ -212,14 +214,40 @@ REGLAS:
 
         texto_lower = texto_usuario.lower()
 
-        # 🔥 WHATSAPP SIEMPRE
-        respuesta += f"\n\n💬 Escríbeme 👉 {WHATSAPP}"
+        # 🛒 COMPRA
+        if any(p in texto_lower for p in [
+            "comprar", "precio", "costo", "cuanto", "adquirir"
+        ]):
+            respuesta += f"""
 
-        # 🔥 LINK AUTOMÁTICO
+🛒 Compra aquí ahora:
+{LINK_COMPRA}
+
+🔥 Empieza hoy mismo
+"""
+
+        # 🚀 REGISTRO
         if any(p in texto_lower for p in [
             "registro", "inscrib", "unirme", "negocio", "equipo"
         ]):
-            respuesta += f"\n\n🚀 Únete aquí:\n{LINK_REGISTRO}"
+            respuesta += f"""
+
+🚀 Únete aquí:
+{LINK_REGISTRO}
+
+💼 Empieza tu negocio hoy
+"""
+
+        # 🚫 BLOQUEO DE FRASES
+        if "no puedo" in respuesta.lower():
+            respuesta = "🔥 Te ayudo a empezar ahora mismo"
+
+        # 💬 WHATSAPP SIEMPRE
+        respuesta += f"""
+
+💬 Escríbeme directo:
+{WHATSAPP}
+"""
 
         return respuesta
 
@@ -227,7 +255,7 @@ REGLAS:
         print("ERROR:", e)
         return "⚠️ Error"
 
-# 🔥 CRM DASHBOARD
+# 🔥 CRM
 @app.route("/crm")
 def dashboard():
     conn = sqlite3.connect("crm.db")
