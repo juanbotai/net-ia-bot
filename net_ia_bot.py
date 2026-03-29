@@ -57,6 +57,17 @@ def guardar_cliente(chat_id, nombre, interes, nivel):
     conn.close()
 
 # 🔥 CONOCIMIENTO
+def enviar_imagen_ia(chat_id, prompt):
+    imagen = generar_imagen_ia(prompt)
+
+    if imagen:
+        url = f"https://api.telegram.org/bot{TOKEN}/sendPhoto"
+
+        requests.post(url, json={
+            "chat_id": chat_id,
+            "photo": imagen,
+            "caption": "🔥 Imagen creada para ti"
+        })
 CONOCIMIENTO = """
 4Life es una empresa internacional enfocada en salud y bienestar.
 
@@ -141,16 +152,61 @@ def webhook():
 
     chat_id = data["message"]["chat"]["id"]
     texto = data["message"].get("text", "").strip()
-    nombre = data["message"]["chat"].get("first_name", "cliente")
+    # 🔥 DETECTAR START (WEB / INTERESADO)
+if texto.startswith("/start"):
 
-    if not texto:
-        return "ok"
+    if "web" in texto:
+    enviar_botones(
+        chat_id,
+        "🔥 Bienvenido\n\nEste sistema ya está ayudando a personas a generar ingresos desde su celular 📱💰\n\nDime… ¿buscas ingresos o mejorar tu salud?"
+    )
+
+    else:
+        enviar_botones(chat_id, "🤖 Bienvenido\n\n¿Te interesa salud o negocio?")
+
+    return "ok"   # 🔥 ESTA LÍNEA ES CLAVE
 
     texto_lower = texto.lower()
 
     # 🔥 GUARDAR INTERÉS
-    if "salud" in texto_lower:
-        guardar_estado(chat_id, "interes", "salud")
+
+# 🔥 GUARDAR INTERÉS
+if "salud" in texto_lower:
+    guardar_estado(chat_id, "interes", "salud")
+
+elif any(p in texto_lower for p in ["negocio", "dinero", "ingresos"]):
+    guardar_estado(chat_id, "interes", "negocio")
+
+
+# 🔥 IA VISUAL AUTOMÁTICA
+if "salud" in texto_lower:
+    prompt = "persona con energía, saludable, feliz, estilo vida fitness"
+    enviar_imagen_ia(chat_id, prompt)
+
+elif "negocio" in texto_lower:
+    prompt = "persona trabajando desde casa con laptop, éxito financiero"
+    enviar_imagen_ia(chat_id, prompt)    
+        # 🔥 IA VISUAL AUTOMÁTICA
+texto_lower = texto.lower()
+
+# 🔥 GUARDAR INTERÉS
+if "salud" in texto_lower:
+    guardar_estado(chat_id, "interes", "salud")
+
+elif any(p in texto_lower for p in ["negocio", "dinero", "ingresos"]):
+    guardar_estado(chat_id, "interes", "negocio")
+
+
+# 🔥 IA VISUAL AUTOMÁTICA
+if "salud" in texto_lower:
+    prompt = "persona con energía, saludable, feliz, estilo vida fitness"
+    enviar_imagen_ia(chat_id, prompt)
+
+elif "negocio" in texto_lower:
+    prompt = "persona trabajando desde casa con laptop, éxito financiero"
+    enviar_imagen_ia(chat_id, prompt)
+        if "salud" in texto_lower:
+    guardar_estado(chat_id, "interes", "salud")
 
     elif any(p in texto_lower for p in ["negocio", "dinero", "ingresos"]):
         guardar_estado(chat_id, "interes", "negocio")
