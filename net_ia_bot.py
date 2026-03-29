@@ -2,15 +2,19 @@ from flask import Flask, request
 import requests
 import sqlite3
 from datetime import datetime
+import os
 
 app = Flask(__name__)
 
-import os
-
 TOKEN = os.getenv("TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
 # 🔥 MEMORIA
 historial = {}
+
+# 🔗 LINK
+LINK_REGISTRO = "https://peru.4life.com/corp/signup/PC"
+WHATSAPP = "https://wa.me/51976339774"
 
 # 🔥 BASE DE DATOS
 def iniciar_db():
@@ -46,21 +50,11 @@ def guardar_cliente(chat_id, nombre, interes, nivel):
     conn.commit()
     conn.close()
 
-# 🔥 CONOCIMIENTO
-def cargar_conocimiento():
-    try:
-        with open("conocimiento.txt", "r", encoding="utf-8") as f:
-            return f.read()
-    except:
-        return ""
-
-CONOCIMIENTO = cargar_conocimiento()
-
 # 🔥 INTENCIÓN
 def detectar_intencion(texto):
     texto = texto.lower()
 
-    if any(p in texto for p in ["precio", "cuanto", "costo"]):
+    if any(p in texto for p in ["precio", "comprar", "cuanto", "costo"]):
         return "caliente 🔥"
     elif any(p in texto for p in ["quiero", "me interesa"]):
         return "caliente 🔥"
@@ -69,14 +63,14 @@ def detectar_intencion(texto):
     else:
         return "frio ❄️"
 
-# 🔥 BOTONES
+# 🔥 BOTONES VENDEDORES
 def enviar_botones(chat_id, texto):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
     botones = {
         "keyboard": [
-            ["Salud 💪", "Negocio 💼"],
-            ["Comprar 🛒", "Info ℹ️"]
+            ["🔥 Mejorar Salud", "💰 Ganar Dinero"],
+            ["🛒 Comprar Ahora", "🚀 Unirme"]
         ],
         "resize_keyboard": True
     }
@@ -91,6 +85,7 @@ def enviar_botones(chat_id, texto):
 @app.route("/")
 def home():
     return "Bot activo"
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.get_json()
@@ -106,18 +101,32 @@ def webhook():
         nivel = detectar_intencion(texto)
         guardar_cliente(chat_id, nombre, texto, nivel)
 
-        # BOTONES CON IA
-        if texto.lower() == "salud 💪":
+        texto_lower = texto.lower()
+
+        # 🚀 MENSAJE INICIAL
+        if texto_lower == "/start":
+            respuesta = f"""🔥 Bienvenido a 4Life
+
+💪 Mejora tu salud
+💰 Genera ingresos desde casa
+
+👉 Empieza aquí:
+{LINK_REGISTRO}
+
+¿Quieres salud o dinero?"""
+
+        # BOTONES
+        elif "salud" in texto_lower:
             respuesta = generar_respuesta(chat_id, "quiero mejorar mi salud", "salud")
 
-        elif texto.lower() == "negocio 💼":
+        elif "dinero" in texto_lower or "negocio" in texto_lower:
             respuesta = generar_respuesta(chat_id, "quiero generar ingresos", "negocio")
 
-        elif texto.lower() == "comprar 🛒":
+        elif "comprar" in texto_lower:
             respuesta = generar_respuesta(chat_id, "quiero comprar", "comprar")
 
-        elif texto.lower() == "info ℹ️":
-            respuesta = generar_respuesta(chat_id, "quiero información", "info")
+        elif "unirme" in texto_lower or "inscrib" in texto_lower:
+            respuesta = generar_respuesta(chat_id, "quiero unirme", "registro")
 
         else:
             respuesta = generar_respuesta(chat_id, texto)
@@ -126,7 +135,7 @@ def webhook():
 
     return "ok"
 
-# 🔥 IA REAL
+# 🔥 IA VENDEDORA
 def generar_respuesta(chat_id, texto_usuario, tipo="general"):
     try:
         if chat_id not in historial:
@@ -139,32 +148,35 @@ def generar_respuesta(chat_id, texto_usuario, tipo="general"):
 
         mensajes = historial[chat_id][-6:]
 
-        # 🎯 MODO SEGÚN BOTÓN
-        modo = ""
+        # 🎯 MODOS
         if tipo == "salud":
-            modo = "Habla de beneficios de salud."
+            modo = "Habla de beneficios de salud y bienestar."
         elif tipo == "negocio":
-            modo = "Habla de ingresos y oportunidad."
+            modo = "Habla de ingresos y libertad financiera."
         elif tipo == "comprar":
-            modo = "Cierra la venta."
-        elif tipo == "info":
-            modo = "Explica y genera interés."
+            modo = "Cierra la venta del producto."
+        elif tipo == "registro":
+            modo = "Lleva directo al registro."
         else:
-            modo = "Detecta necesidad y guía."
+            modo = "Detecta necesidad y vende."
 
         system_prompt = f"""
-Eres NET, experto en ventas de 4Life.
+Eres NET, un vendedor experto en 4Life.
 
-Conocimiento:
-{CONOCIMIENTO}
+OBJETIVO:
+- Vender productos
+- Llevar al cliente a WhatsApp
+- Llevar al cliente a registro
 
 Modo:
 {modo}
 
-Reglas:
+REGLAS:
 - Máx 3 líneas
+- Lenguaje persuasivo
+- Habla de beneficios
+- Siempre intenta cerrar
 - Termina con pregunta
-- Lenguaje humano
 """
 
         headers = {
@@ -187,14 +199,11 @@ Reglas:
         )
 
         result = response.json()
-        print("STATUS:", response.status_code)
-        print("IA RESPONSE:", result)
 
-        # 🔥 LECTURA SEGURA
         try:
             respuesta = result["output"][0]["content"][0]["text"]
         except:
-            respuesta = "🤖 Estoy procesando... intenta otra vez"
+            respuesta = "🔥 Escríbeme para ayudarte mejor"
 
         historial[chat_id].append({
             "role": "assistant",
@@ -203,24 +212,22 @@ Reglas:
 
         texto_lower = texto_usuario.lower()
 
-        # 🔥 WHATSAPP
-        if any(p in texto_lower for p in ["precio", "comprar", "interesa"]):
-            respuesta += "\n\n👉 Escríbeme: https://wa.me/51976339774"
+        # 🔥 WHATSAPP SIEMPRE
+        respuesta += f"\n\n💬 Escríbeme 👉 {WHATSAPP}"
 
-        # 🔥 AFILIACIÓN
+        # 🔥 LINK AUTOMÁTICO
         if any(p in texto_lower for p in [
-            "afiliarme", "registrarme", "inscribirme",
-            "quiero entrar", "negocio", "unirme"
+            "registro", "inscrib", "unirme", "negocio", "equipo"
         ]):
-            respuesta += "\n\n🚀 Regístrate aquí:\nhttps://peru.4life.com/corp/signup/PC"
+            respuesta += f"\n\n🚀 Únete aquí:\n{LINK_REGISTRO}"
 
         return respuesta
 
     except Exception as e:
-        print("ERROR IA:", e)
-        return "⚠️ Error IA"
+        print("ERROR:", e)
+        return "⚠️ Error"
 
-# 🔥 DASHBOARD
+# 🔥 CRM DASHBOARD
 @app.route("/crm")
 def dashboard():
     conn = sqlite3.connect("crm.db")
@@ -237,7 +244,7 @@ def dashboard():
     html = f"""
     <html>
     <body style="background:#0f172a;color:white;text-align:center;font-family:Arial">
-    <h1>🚀 CRM NIVEL DIOS</h1>
+    <h1>🚀 CRM</h1>
     <h3>Total: {total} | Calientes: {calientes}</h3>
     <table border=1 style="margin:auto;width:90%">
     <tr><th>Nombre</th><th>Interés</th><th>Nivel</th><th>Fecha</th></tr>
