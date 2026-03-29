@@ -66,9 +66,8 @@ def enviar_botones(chat_id, texto):
     })
 
 # 🔥 WEBHOOK
-@app.route("/")
-def home():
-    return "Bot activo"
+# 🔥 ESTADO USUARIO
+estado_usuario = {}
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -77,87 +76,111 @@ def webhook():
     if "message" in data:
         chat_id = data["message"]["chat"]["id"]
         texto = data["message"].get("text", "").lower()
-        nombre = data["message"]["chat"].get("first_name", "cliente")
 
-        guardar_cliente(chat_id, nombre, texto, "activo")
+        estado = estado_usuario.get(chat_id, "inicio")
 
         # 🚀 INICIO
         if texto == "/start":
-            respuesta = f"""🔥 Bienvenido a 4Life
+            estado_usuario[chat_id] = "inicio"
 
-💪 Mejora tu salud
-💰 Genera ingresos
+            enviar_botones(chat_id,
+                "🔥 Bienvenido a 4Life\n\n¿Qué deseas hoy?",
+                [["🔥 Salud"], ["💰 Negocio"]]
+            )
 
-👉 Empieza aquí:
-{LINK_REGISTRO}
-
-Elige una opción 👇"""
-
-        # 💪 SALUD
+        # 💪 SALUD (PASO 1)
         elif "salud" in texto:
-            respuesta = f"""💪 Mejora tu salud con 4Life
+            estado_usuario[chat_id] = "salud1"
+
+            enviar_botones(chat_id,
+                "💪 Perfecto\n\n¿Qué deseas mejorar?",
+                [["⚡ Energía"], ["🛡️ Sistema Inmune"]]
+            )
+
+        # 💪 SALUD (PASO 2)
+        elif estado == "salud1":
+            estado_usuario[chat_id] = "salud2"
+
+            enviar_botones(chat_id,
+                f"""🔥 Este producto es ideal
 
 ✔ Más energía  
-✔ Sistema inmune fuerte  
-✔ Mejor bienestar  
+✔ Defensas altas  
 
 🛒 Compra aquí:
 {LINK_COMPRA}
 
-💬 Escríbeme:
-{WHATSAPP}"""
+⏳ Oferta limitada""",
+                [["🛒 Comprar Ahora"], ["💬 Asesor"]]
+            )
 
-        # 💰 NEGOCIO
-        elif "negocio" in texto or "dinero" in texto:
-            respuesta = f"""💰 Genera ingresos con 4Life
+        # 💰 NEGOCIO (PASO 1)
+        elif "negocio" in texto:
+            estado_usuario[chat_id] = "negocio1"
 
-✔ Gana comisiones  
-✔ Negocio internacional  
-✔ Sin jefes  
+            enviar_botones(chat_id,
+                "💰 Perfecto\n\n¿Qué buscas?",
+                [["💵 Extra"], ["🚀 Grande"]]
+            )
+
+        # 💰 NEGOCIO (PASO 2)
+        elif estado == "negocio1":
+            estado_usuario[chat_id] = "negocio2"
+
+            enviar_botones(chat_id,
+                f"""🔥 Este negocio es para ti
+
+✔ Ingresos desde casa  
+✔ Sistema probado  
 
 🚀 Únete aquí:
 {LINK_REGISTRO}
 
-💬 Escríbeme:
-{WHATSAPP}"""
+⏳ Cupos limitados""",
+                [["🚀 Unirme"], ["💬 Asesor"]]
+            )
 
-        # 🛒 COMPRAR
+        # 🛒 COMPRA FINAL
         elif "comprar" in texto:
-            respuesta = f"""🛒 Compra productos 4Life
+            enviar_botones(chat_id,
+                f"""🛒 Compra ahora
 
-🔥 Resultados reales
-
-👉 Compra aquí:
 {LINK_COMPRA}
 
-💬 Escríbeme:
-{WHATSAPP}"""
+🔥 Empieza hoy mismo""",
+                [["💬 Asesor"]]
+            )
 
-        # 🚀 UNIRME
-        elif "unirme" in texto or "inscrib" in texto:
-            respuesta = f"""🚀 Únete al equipo 4Life
+        # 🚀 REGISTRO FINAL
+        elif "unirme" in texto:
+            enviar_botones(chat_id,
+                f"""🚀 Regístrate ahora
 
-💼 Empieza hoy  
-💪 Mejora tu vida  
-
-👉 Regístrate:
 {LINK_REGISTRO}
 
-💬 Escríbeme:
-{WHATSAPP}"""
+💼 Empieza hoy""",
+                [["💬 Asesor"]]
+            )
 
-        # ❗ CONTROL TOTAL
+        # 💬 WHATSAPP
+        elif "asesor" in texto:
+            enviar_botones(chat_id,
+                f"""💬 Escríbeme aquí:
+
+{WHATSAPP}
+
+Te guío paso a paso""",
+                [["🔥 Inicio"]]
+            )
+
+        # 🔁 RESET
         else:
-            respuesta = """🔥 Elige una opción:
+            estado_usuario[chat_id] = "inicio"
 
-💪 Salud  
-💰 Negocio  
-🛒 Comprar  
-🚀 Unirme  
-
-👇 Usa los botones"""
-
-        enviar_botones(chat_id, respuesta)
+            enviar_botones(chat_id,
+                "🔥 Elige una opción",
+                [["🔥 Salud"], ["💰 Negocio"]]
+            )
 
     return "ok"
 
