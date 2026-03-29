@@ -2,15 +2,26 @@ from flask import Flask, request
 import requests
 import sqlite3
 from datetime import datetime
+import os
+import threading
+import time
 
 app = Flask(__name__)
 
-import os
-
 TOKEN = os.getenv("TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
 # 🔥 MEMORIA
 historial = {}
+estado_usuario = {}
+
+def guardar_estado(chat_id, clave, valor):
+    if chat_id not in estado_usuario:
+        estado_usuario[chat_id] = {}
+    estado_usuario[chat_id][clave] = valor
+
+def obtener_estado(chat_id, clave):
+    return estado_usuario.get(chat_id, {}).get(clave)
 
 # 🔥 BASE DE DATOS
 def iniciar_db():
@@ -32,7 +43,6 @@ def iniciar_db():
 
 iniciar_db()
 
-# 🔥 GUARDAR CLIENTE
 def guardar_cliente(chat_id, nombre, interes, nivel):
     conn = sqlite3.connect("crm.db")
     cursor = conn.cursor()
@@ -47,24 +57,36 @@ def guardar_cliente(chat_id, nombre, interes, nivel):
     conn.close()
 
 # 🔥 CONOCIMIENTO
-def cargar_conocimiento():
-    try:
-        with open("conocimiento.txt", "r", encoding="utf-8") as f:
-            return f.read()
-    except:
-        return ""
+CONOCIMIENTO = """
+4Life es una empresa internacional enfocada en salud y bienestar.
 
-CONOCIMIENTO = cargar_conocimiento()
+Muchas personas ya están mejorando su energía y generando ingresos.
+
+Productos:
+- Transfer Factor: fortalece el sistema inmunológico
+
+Beneficios:
+- Más energía diaria
+- Mejor sistema inmune
+
+Negocio:
+- Ingresos desde casa
+- Sistema duplicable
+
+Frases clave:
+- Puedes empezar hoy
+- Muchas personas ya están viendo resultados
+"""
 
 # 🔥 INTENCIÓN
 def detectar_intencion(texto):
     texto = texto.lower()
 
-    if any(p in texto for p in ["precio", "cuanto", "costo"]):
+    if any(p in texto for p in ["precio", "cuanto", "costo", "comprar"]):
         return "caliente 🔥"
-    elif any(p in texto for p in ["quiero", "me interesa"]):
+    elif any(p in texto for p in ["quiero", "me interesa", "negocio", "ingresos"]):
         return "caliente 🔥"
-    elif any(p in texto for p in ["info", "que es"]):
+    elif any(p in texto for p in ["info", "que es", "como funciona"]):
         return "medio 😐"
     else:
         return "frio ❄️"
@@ -87,46 +109,86 @@ def enviar_botones(chat_id, texto):
         "reply_markup": botones
     })
 
+# 🎥 VIDEO
+def enviar_video(chat_id):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendVideo"
+
+    requests.post(url, json={
+        "chat_id": chat_id,
+        "video": "https://www.w3schools.com/html/mov_bbb.mp4",
+        "caption": "🎥 Mira esto y dime qué te parece"
+    })
+
+# ⏱️ SEGUIMIENTO
+def seguimiento(chat_id):
+    time.sleep(60)
+    enviar_botones(chat_id, "👀 Hola, ¿pudiste ver la info? Te ayudo a empezar 👍")
+
+    time.sleep(120)
+    enviar_botones(chat_id, "🔥 Muchas personas ya están logrando resultados… ¿quieres empezar?")
+
 # 🔥 WEBHOOK
 @app.route("/")
 def home():
     return "Bot activo"
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.get_json()
 
-    if not data:
+    if not data or "message" not in data:
         return "ok"
 
-    if "message" in data:
-        chat_id = data["message"]["chat"]["id"]
-        texto = data["message"].get("text", "")
-        nombre = data["message"]["chat"].get("first_name", "cliente")
+    chat_id = data["message"]["chat"]["id"]
+    texto = data["message"].get("text", "").strip()
+    nombre = data["message"]["chat"].get("first_name", "cliente")
 
-        nivel = detectar_intencion(texto)
-        guardar_cliente(chat_id, nombre, texto, nivel)
+    if not texto:
+        return "ok"
 
-        # BOTONES CON IA
-        if texto.lower() == "salud 💪":
-            respuesta = generar_respuesta(chat_id, "quiero mejorar mi salud", "salud")
+    texto_lower = texto.lower()
 
-        elif texto.lower() == "negocio 💼":
-            respuesta = generar_respuesta(chat_id, "quiero generar ingresos", "negocio")
+    # 🔥 GUARDAR INTERÉS
+    if "salud" in texto_lower:
+        guardar_estado(chat_id, "interes", "salud")
 
-        elif texto.lower() == "comprar 🛒":
-            respuesta = generar_respuesta(chat_id, "quiero comprar", "comprar")
+    elif any(p in texto_lower for p in ["negocio", "dinero", "ingresos"]):
+        guardar_estado(chat_id, "interes", "negocio")
 
-        elif texto.lower() == "info ℹ️":
-            respuesta = generar_respuesta(chat_id, "quiero información", "info")
+    # 🔥 NIVEL
+    nivel = detectar_intencion(texto)
+    guardar_cliente(chat_id, nombre, texto, nivel)
 
-        else:
-            respuesta = generar_respuesta(chat_id, texto)
+    # 🔥 RESPUESTA
+    if texto_lower == "salud 💪":
+        respuesta = generar_respuesta(chat_id, "quiero mejorar mi salud", "salud")
 
-        enviar_botones(chat_id, respuesta)
+    elif texto_lower == "negocio 💼":
+        respuesta = generar_respuesta(chat_id, "quiero generar ingresos", "negocio")
+
+    elif texto_lower == "comprar 🛒":
+        respuesta = generar_respuesta(chat_id, "quiero comprar", "comprar")
+
+    elif texto_lower == "info ℹ️":
+        respuesta = generar_respuesta(chat_id, "quiero información", "info")
+        enviar_video(chat_id)
+
+    else:
+        respuesta = generar_respuesta(chat_id, texto)
+
+    # 🔥 CIERRE AUTOMÁTICO
+    if nivel == "caliente 🔥":
+        respuesta += "\n\n🔥 Estás a un paso… ¿empezamos hoy?"
+
+    enviar_botones(chat_id, respuesta)
+
+    # 🔥 SEGUIMIENTO
+    if nivel != "frio ❄️":
+        threading.Thread(target=seguimiento, args=(chat_id,)).start()
 
     return "ok"
 
-# 🔥 IA REAL
+# 🔥 IA
 def generar_respuesta(chat_id, texto_usuario, tipo="general"):
     try:
         if chat_id not in historial:
@@ -139,21 +201,29 @@ def generar_respuesta(chat_id, texto_usuario, tipo="general"):
 
         mensajes = historial[chat_id][-6:]
 
-        # 🎯 MODO SEGÚN BOTÓN
-        modo = ""
+        # 🎯 MODO
         if tipo == "salud":
             modo = "Habla de beneficios de salud."
         elif tipo == "negocio":
-            modo = "Habla de ingresos y oportunidad."
+            modo = "Habla de ingresos."
         elif tipo == "comprar":
             modo = "Cierra la venta."
         elif tipo == "info":
             modo = "Explica y genera interés."
         else:
-            modo = "Detecta necesidad y guía."
+            modo = "Detecta necesidad."
 
+        # 🔥 PERSONALIZACIÓN POR INTERÉS
+        interes = obtener_estado(chat_id, "interes")
+
+        if interes == "salud":
+            modo += " Enfócate en beneficios de salud."
+        elif interes == "negocio":
+            modo += " Enfócate en ingresos y libertad."
+
+        # 🔥 PROMPT
         system_prompt = f"""
-Eres NET, experto en ventas de 4Life.
+Eres NET, un experto CERRADOR de ventas de 4Life.
 
 Conocimiento:
 {CONOCIMIENTO}
@@ -161,10 +231,14 @@ Conocimiento:
 Modo:
 {modo}
 
+Estrategia:
+- Genera emoción
+- Usa prueba social
+- Lleva al cierre
+
 Reglas:
-- Máx 3 líneas
+- Máximo 3 líneas
 - Termina con pregunta
-- Lenguaje humano
 """
 
         headers = {
@@ -187,14 +261,11 @@ Reglas:
         )
 
         result = response.json()
-        print("STATUS:", response.status_code)
-        print("IA RESPONSE:", result)
 
-        # 🔥 LECTURA SEGURA
         try:
             respuesta = result["output"][0]["content"][0]["text"]
         except:
-            respuesta = "🤖 Estoy procesando... intenta otra vez"
+            respuesta = "🔥 Tengo algo muy bueno para ti. ¿Buscas salud o ingresos?"
 
         historial[chat_id].append({
             "role": "assistant",
@@ -203,51 +274,21 @@ Reglas:
 
         texto_lower = texto_usuario.lower()
 
-        # 🔥 WHATSAPP
-        if any(p in texto_lower for p in ["precio", "comprar", "interesa"]):
-            respuesta += "\n\n👉 Escríbeme: https://wa.me/51976339774"
+        # 🔥 CIERRE
+        if any(p in texto_lower for p in ["quiero", "interesa", "comprar"]):
+            respuesta += "\n\n🔥 ¿Empezamos hoy?"
 
-        # 🔥 AFILIACIÓN
-        if any(p in texto_lower for p in [
-            "afiliarme", "registrarme", "inscribirme",
-            "quiero entrar", "negocio", "unirme"
-        ]):
-            respuesta += "\n\n🚀 Regístrate aquí:\nhttps://peru.4life.com/corp/signup/PC"
+        if "precio" in texto_lower:
+            respuesta += "\n👉 https://wa.me/51976339774"
+
+        if "negocio" in texto_lower:
+            respuesta += "\n🚀 https://peru.4life.com/corp/signup/PC"
 
         return respuesta
 
     except Exception as e:
         print("ERROR IA:", e)
         return "⚠️ Error IA"
-
-# 🔥 DASHBOARD
-@app.route("/crm")
-def dashboard():
-    conn = sqlite3.connect("crm.db")
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT * FROM clientes ORDER BY fecha DESC")
-    datos = cursor.fetchall()
-
-    conn.close()
-
-    total = len(datos)
-    calientes = len([c for c in datos if "caliente" in c[3]])
-
-    html = f"""
-    <html>
-    <body style="background:#0f172a;color:white;text-align:center;font-family:Arial">
-    <h1>🚀 CRM NIVEL DIOS</h1>
-    <h3>Total: {total} | Calientes: {calientes}</h3>
-    <table border=1 style="margin:auto;width:90%">
-    <tr><th>Nombre</th><th>Interés</th><th>Nivel</th><th>Fecha</th></tr>
-    """
-
-    for c in datos:
-        html += f"<tr><td>{c[1]}</td><td>{c[2]}</td><td>{c[3]}</td><td>{c[4]}</td></tr>"
-
-    html += "</table></body></html>"
-    return html
 
 # 🚀 RUN
 if __name__ == "__main__":
