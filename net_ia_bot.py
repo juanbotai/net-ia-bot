@@ -1,17 +1,24 @@
 import os
+import asyncio
+import nest_asyncio
 from flask import Flask
 from threading import Thread
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 # =========================
+# SOLUCIÓN ASYNC (IMPORTANTE)
+# =========================
+nest_asyncio.apply()
+
+# =========================
 # CONFIGURACIÓN
 # =========================
-TOKEN = os.getenv("TOKEN")  # Token desde Render
+TOKEN = os.getenv("TOKEN")
 PORT = int(os.environ.get("PORT", 10000))
 
 # =========================
-# FLASK PARA UPTIME
+# FLASK (UPTIME)
 # =========================
 app = Flask(__name__)
 
@@ -19,11 +26,12 @@ app = Flask(__name__)
 def home():
     return "Bot empresarial activo 24/7 💼🔥"
 
-def run():
+def run_flask():
     app.run(host='0.0.0.0', port=PORT)
 
 def keep_alive():
-    t = Thread(target=run)
+    t = Thread(target=run_flask)
+    t.daemon = True
     t.start()
 
 # =========================
@@ -34,7 +42,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     teclado = [["Sí", "No"]]
     await update.message.reply_text(
         "Hola 👋 Soy el asistente empresarial de Juan Quispe\n\n"
-        "Ayudo a empresas a mejorar la energía, salud y productividad 💼\n\n"
+        "Ayudo a empresas a mejorar energía ⚡ salud 💪 y productividad 📈\n\n"
         "¿Tu empresa tiene más de 5 colaboradores?",
         reply_markup=ReplyKeyboardMarkup(teclado, resize_keyboard=True)
     )
@@ -43,43 +51,37 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = update.message.text.lower()
 
     # PASO 1
-    if "sí" in texto:
+    if any(p in texto for p in ["sí", "si"]):
         teclado = [["Estrés", "Baja energía"], ["Enfermedades", "Rendimiento"]]
         await update.message.reply_text(
-            "Perfecto 👌\n\n"
-            "¿Cuál es el principal problema en tu equipo?",
+            "Perfecto 👌\n\n¿Cuál es el principal problema en tu equipo?",
             reply_markup=ReplyKeyboardMarkup(teclado, resize_keyboard=True)
         )
 
     elif "no" in texto:
         await update.message.reply_text(
-            "Entiendo 👍\n\n"
-            "Si en algún momento deseas mejorar la salud o productividad de tu equipo, escríbeme 💼"
+            "Entiendo 👍\n\nCuando quieras mejorar la salud o productividad de tu equipo, escríbeme 💼"
         )
 
     # PASO 2
-    elif texto in ["estrés", "baja energía", "enfermedades", "rendimiento"]:
+    elif any(p in texto for p in ["estrés", "estres", "baja energía", "energia", "enfermedades", "rendimiento"]):
         teclado = [["Agendar reunión", "Más información"]]
         await update.message.reply_text(
-            "Excelente 👌\n\n"
-            "Tenemos un programa empresarial que mejora ese problema 📈\n\n"
-            "¿Qué deseas hacer?",
+            "Excelente 👌\n\nTenemos un programa empresarial que soluciona ese problema 📈🔥\n\n¿Qué deseas hacer?",
             reply_markup=ReplyKeyboardMarkup(teclado, resize_keyboard=True)
         )
 
     # PASO 3 - CIERRE
     elif "agendar" in texto:
         await update.message.reply_text(
-            "Perfecto 🚀\n\n"
-            "Agenda aquí tu reunión directa conmigo:\n"
+            "Perfecto 🚀\n\nAgenda aquí tu reunión directa conmigo:\n"
             "👉 https://wa.me/51976339774\n\n"
             "Te ayudaré personalmente 💼🔥"
         )
 
-    elif "más información" in texto:
+    elif "información" in texto or "informacion" in texto:
         await update.message.reply_text(
-            "Claro 👇\n\n"
-            "Nuestro programa mejora:\n"
+            "Claro 👇\n\nNuestro programa mejora:\n"
             "✅ Energía del equipo\n"
             "✅ Sistema inmunológico\n"
             "✅ Rendimiento laboral\n\n"
@@ -89,12 +91,11 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     else:
         await update.message.reply_text(
-            "No entendí 🤖\n\n"
-            "Por favor usa los botones para continuar."
+            "👉 Por favor usa los botones para continuar"
         )
 
 # =========================
-# INICIO BOT
+# INICIO PRINCIPAL
 # =========================
 
 def main():
@@ -106,7 +107,8 @@ def main():
     app_bot.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, responder))
 
     print("Bot empresarial corriendo 24/7 🚀")
-    app_bot.run_polling()
+
+    app_bot.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
