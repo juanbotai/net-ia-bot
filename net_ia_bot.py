@@ -1,39 +1,3 @@
-import os
-import nest_asyncio
-from flask import Flask
-from threading import Thread
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-
-# Fix async
-nest_asyncio.apply()
-
-# Variables de entorno
-TOKEN = os.getenv("TOKEN")
-PORT = int(os.environ.get("PORT", 10000))
-
-# Validar TOKEN
-if not TOKEN:
-    raise ValueError("Falta el TOKEN de Telegram")
-
-# ===== FLASK =====
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "Bot activo 💼🔥"
-
-def run_flask():
-    app.run(host='0.0.0.0', port=PORT)
-
-# ===== BOT =====
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    teclado = [["Si", "No"]]
-    await update.message.reply_text(
-        "Hola 👋 Soy tu asistente empresarial\n\n¿Tu empresa tiene más de 5 colaboradores?",
-        reply_markup=ReplyKeyboardMarkup(teclado, resize_keyboard=True)
-    )
 
 async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
